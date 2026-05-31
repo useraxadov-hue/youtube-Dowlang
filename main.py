@@ -4,6 +4,7 @@ import os
 import logging
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, FSInputFile
+from aiogram.filters import Command  # Yangi filter qo'shildi
 import yt_dlp
 
 # Bot tokenini shu yerga kiriting
@@ -20,7 +21,7 @@ def download_video_sync(url):
         'outtmpl': '%(id)s.%(ext)s',
         'quiet': True,
         'no_warnings': True,
-        # Hosting IP manzili bloklanmasligi uchun YouTube'ga xuddi telefondan kirgandek ko'rinamiz
+        # YouTube blokirovkasini aylanib o'tish uchun mobil qurilma simulyatsiyasi
         'extractor_args': {
             'youtube': {
                 'player_client': ['ios', 'android'],
@@ -35,6 +36,18 @@ def download_video_sync(url):
         filename = ydl.prepare_filename(info)
         return filename, title
 
+# === /start buyrug'i uchun handler ===
+@dp.message(Command("start"))
+async def cmd_start(message: Message):
+    welcome_text = (
+        "👋 **Salom! YouTube videolarni yuklovchi botga xush kelibsiz!**\n\n"
+        "Menga videolarni yuklash uchun havolalar ro'yxatini **JSON formatida** yuboring.\n\n"
+        "**To'g'ri format na'munasi:**\n"
+        "`[\"https://www.youtube.com/watch?v=GgeGQ4BdbQ8\"]`"
+    )
+    await message.reply(welcome_text, parse_mode="Markdown")
+
+# === JSON havolalar ro'yxatini qabul qilish ===
 @dp.message(F.text.startswith("["))
 async def handle_links(message: Message):
     try:
