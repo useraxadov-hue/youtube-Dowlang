@@ -1,1 +1,1 @@
-  worket:main.py
+  worket:python main.py
