@@ -1,40 +1,16 @@
 import asyncio
 import json
-import os
 import logging
+import aiohttp
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, FSInputFile
-from aiogram.filters import Command  # Yangi filter qo'shildi
-import yt_dlp
+from aiogram.types import Message, URLInputFile
+from aiogram.filters import Command
 
 # Bot tokenini shu yerga kiriting
 TOKEN = "8269983303:AAFgcvk0J6ml9Y00WtdIFh2UadlYlgsO5l4"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
-
-def download_video_sync(url):
-    """Videoni yt-dlp yordamida yuklab olish (Blokirovkani chetlab o'tish sozlamalari bilan)"""
-    ydl_opts = {
-        # Telegram API uchun 50MB cheklov
-        'format': 'best[filesize<50M]/best', 
-        'outtmpl': '%(id)s.%(ext)s',
-        'quiet': True,
-        'no_warnings': True,
-        # YouTube blokirovkasini aylanib o'tish uchun mobil qurilma simulyatsiyasi
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['ios', 'android'],
-                'player_skip': ['webpage', 'configs']
-            }
-        }
-    }
-    
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        title = info.get('title', "Noma'lum video")
-        filename = ydl.prepare_filename(info)
-        return filename, title
 
 # === /start buyrug'i uchun handler ===
 @dp.message(Command("start"))
@@ -61,27 +37,41 @@ async def handle_links(message: Message):
 
     status_msg = await message.reply(f"⏳ {len(links)} ta havola qabul qilindi. Yuklash boshlanmoqda...")
 
-    for url in links:
-        try:
-            # Server qotib qolmasligi uchun yuklashni alohida oqimda bajaramiz
-            filename, title = await asyncio.to_thread(download_video_sync, url)
-            
-            # Videoni Telegramga yuklash
-            video = FSInputFile(filename)
-            await message.answer_video(video=video, caption=title)
-            
-            # Railway xotirasi to'lib qolmasligi uchun darhol faylni o'chiramiz
-            if os.path.exists(filename):
-                os.remove(filename)
+    async with aiohttp.ClientSession() as session:
+        for url in links:
+            try:
+                cobalt_api = "https://api.cobalt.tools/api/json"
+                headers = {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "url": url,
+                    "vQuality": "720"  # Sifatni 720p qilib belgilaymiz
+                }
                 
-        except Exception as e:
-            await message.answer(f"❌ Quyidagi havolada xatolik yuz berdi: {url}\nSebab: `{str(e)}`", parse_mode="Markdown")
+                async with session.post(cobalt_api, json=payload, headers=headers) as response:
+                    if response.status == 200:
+                        res_data = await response.json()
+                        video_url = res_data.get("url")
+                        video_title = res_data.get("text", "YouTube Video")
+                        
+                        if video_url:
+                            # Telegram videoni serverdan to'g'ridan-to'g'ri havola orqali yuklab oladi
+                            video_file = URLInputFile(video_url)
+                            await message.answer_video(video=video_file, caption=video_title)
+                        else:
+                            await message.answer(f"❌ Video havolasini olib bo'lmadi: {url}")
+                    else:
+                        await message.answer(f"❌ Yuklash muvaffaqiyatsiz tugadi (Cobalt API xatosi): {url}")
+            except Exception as e:
+                await message.answer(f"❌ Quyidagi havolada xatolik yuz berdi: {url}\nSebab: `{str(e)}`", parse_mode="Markdown")
 
-    await status_msg.edit_text("✅ Barcha videolar muvaffaqiyatli yuklandi va yuborildi!")
+    await status_msg.edit_text("✅ Jarayon yakunlandi!")
 
 async def main():
     logging.basicConfig(level=logging.INFO)
-    print("Bot hostingda ishga tushdi...")
+    print("Bot hostingda muammosiz ishga tushdi...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
