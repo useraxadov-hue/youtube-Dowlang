@@ -7,7 +7,7 @@ from aiogram.types import Message, FSInputFile
 import yt_dlp
 
 # Bot tokenini shu yerga kiriting
-TOKEN = "SIZNING_BOT_TOKENINGIZ"
+TOKEN = "8269983303:AAFgcvk0J6ml9Y00WtdIFh2UadlYlgsO5l4"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
